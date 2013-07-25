@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25" zv="Cache for Windows (x86-64) 2013.1 (Build 446U)" ts="2013-07-26 09:44:40">
+<Class name="Leleko.Populator.PopulationLog">
+<Description>
+Запись популятора</Description>
+<Final>1</Final>
+<Super>%Persistent</Super>
+<TimeChanged>63029,34865.5892</TimeChanged>
+<TimeCreated>63008,46714.882787</TimeCreated>
+
+<Parameter name="DEFAULTCONCURRENCY">
+<Description>
+Not Lock</Description>
+<Default>0</Default>
+</Parameter>
+
+<Index name="MethodNameIdKey">
+<Description>
+PrimaryKey - имя метода</Description>
+<IdKey>1</IdKey>
+<PrimaryKey>1</PrimaryKey>
+<Properties>MethodName</Properties>
+</Index>
+
+<Property name="MethodName">
+<Description>
+Имя вызванного метода</Description>
+<Type>%String</Type>
+<Final>1</Final>
+<Required>1</Required>
+<Parameter name="MAXLEN" value="256"/>
+</Property>
+
+<Property name="PopulateDate">
+<Description>
+Дата вызова популяции</Description>
+<Type>%Date</Type>
+<Final>1</Final>
+<InitialExpression>+$Horolog</InitialExpression>
+<Required>1</Required>
+<ReadOnly>1</ReadOnly>
+</Property>
+
+<Property name="BeginDT">
+<Description>
+ДатаВремя вызова популяции</Description>
+<Type>%TimeStamp</Type>
+<Final>1</Final>
+<InitialExpression>$ZDateTime($Horolog,3)</InitialExpression>
+<Required>1</Required>
+</Property>
+
+<Property name="EndDT">
+<Description>
+ДатаВремя завершения популяции</Description>
+<Type>%TimeStamp</Type>
+<Final>1</Final>
+<Required>1</Required>
+</Property>
+
+<Property name="Result">
+<Description>
+Результат популяции</Description>
+<Type>%String</Type>
+<Final>1</Final>
+<InitialExpression>"Exception"</InitialExpression>
+<Required>1</Required>
+</Property>
+
+<Property name="Exception">
+<Description>
+Исключение произошедшее во время популяции</Description>
+<Type>%String</Type>
+<Final>1</Final>
+</Property>
+
+<Property name="MethodDescription">
+<Description>
+Описание метода</Description>
+<Type>%String</Type>
+<Final>1</Final>
+</Property>
+
+<Property name="Success">
+<Description>
+Успех</Description>
+<Type>%Boolean</Type>
+<Final>1</Final>
+<InitialExpression>0</InitialExpression>
+<Required>1</Required>
+</Property>
+
+<Method name="%OnNew">
+<FormalSpec>methodName:%CacheString</FormalSpec>
+<Private>1</Private>
+<ReturnType>%Status</ReturnType>
+<ServerOnly>1</ServerOnly>
+<Implementation><![CDATA[
+	Set ..MethodName = methodName
+	Quit $$$OK
+]]></Implementation>
+</Method>
+
+<Storage name="Default">
+<Type>%Library.CacheStorage</Type>
+<DataLocation>^PopulationLogD</DataLocation>
+<DefaultData>PopulationLogDefaultData</DefaultData>
+<IdLocation>^PopulationLogD</IdLocation>
+<IndexLocation>^PopulationLogI</IndexLocation>
+<StreamLocation>^PopulationLogS</StreamLocation>
+<ExtentSize>100000</ExtentSize>
+<Data name="PopulationLogDefaultData">
+<Value name="1">
+<Value>PopulateDate</Value>
+</Value>
+<Value name="2">
+<Value>BeginDT</Value>
+</Value>
+<Value name="3">
+<Value>EndDT</Value>
+</Value>
+<Value name="4">
+<Value>Result</Value>
+</Value>
+<Value name="5">
+<Value>Exception</Value>
+</Value>
+<Value name="6">
+<Value>MethodDescription</Value>
+</Value>
+<Value name="7">
+<Value>Success</Value>
+</Value>
+</Data>
+</Storage>
+</Class>
+
+
+<Class name="Leleko.Populator.Populator">
+<Description>
+Популятор данных на системе ВКТ</Description>
+<Final>1</Final>
+<Abstract>1</Abstract>
+<IncludeCode>%occInclude</IncludeCode>
+<TimeChanged>63029,34932.996036</TimeChanged>
+<TimeCreated>63008,45398.061761</TimeCreated>
+
+<Parameter name="DEBUGMODE">
+<Description>
+Выводить процесс отладки</Description>
+<Type>%Boolean</Type>
+<Final>1</Final>
+<Constraint>0,1</Constraint>
+<Default>1</Default>
+<Flags>ENUM</Flags>
+</Parameter>
+
+<UDLText name="T">
+<Content><![CDATA[
+/*
+Данный класс создан для проведения популяций данных
+Для того чтобы добавить популяцию - создайте ClassMethod с пустым списком параметров и возвращаемым значением (например %Status)
+Для запуска популяции запустите метод Main() - будут выполнены все популяции невыполненные ранее, те же котороые уже были выполнены, повторно исполнены не будут
+*/
+]]></Content>
+</UDLText>
+
+<Method name="Main">
+<Description>
+Метод входа в популятор
+Проходит по всем методам данного класса которые еще не были вызваны ранее и вызывет их
+(!) Не удалять</Description>
+<Final>1</Final>
+<ClassMethod>1</ClassMethod>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	Write:(..#DEBUGMODE) !,"  ------",!,"Начата популяция ",$ZDateTime($Horolog)
+	#Dim methodName As %String = $$$defMemberNext($This,$$$cCLASSmethod,"")
+	While (methodName '= ""){
+		Goto:((methodName = "Main") || (methodName = "MainCompileEntry")) toContinue	// метод - точка входа / к следующему
+		Goto:(
+			(##class(PopulationLog).%ExistsId(methodName))
+		 && (##class(PopulationLog).SuccessGetStored(methodName)=$$$OK)
+		 ) toContinue // метод уже выполнялся / к следующему
+		 
+		#Dim populatorLog As PopulationLog = ##class(PopulationLog).%New(methodName)  // создаем запись в логе
+		#Dim exception As %Exception.SystemException = $$$NULLOREF
+		try {
+			Write:(..#DEBUGMODE) !,"  ",methodName
+			Set populatorLog.Result = $ClassMethod($This,methodName)													// вызываем метод с возвратом результата
+			Set populatorLog.Success = 1
+			Write:(..#DEBUGMODE) " = ",populatorLog.Result
+		} catch exception {
+			Set populatorLog.Exception = "Code = "_exception.Code_" Data = "_exception.Data								// записываем данные об исключении
+			Write:(..#DEBUGMODE) " = (ERROR)",populatorLog.Exception
+		}
+		Set populatorLog.EndDT = $ZDateTime($Horolog,3)		// ставим временнУю метку завершения популяции													// сохраняем описание метода
+		Do populatorLog.%Save()								// сохраняем запись в логе	
+		
+toContinue
+		Set methodName = $$$defMemberNext($This,$$$cCLASSmethod,methodName)
+	}
+	Write:(..#DEBUGMODE) !,"Завершена популяция ",$ZDateTime($Horolog)
+	Quit $$$OK
+]]></Implementation>
+</Method>
+</Class>
+
+
+<Project name="LelekoCachePopulator" LastModified="2013-07-26 09:43:58.26892">
+  <Items>
+    <ProjectItem name="Leleko.Populator.PopulationLog" type="CLS"></ProjectItem>
+    <ProjectItem name="Leleko.Populator.Populator" type="CLS"></ProjectItem>
+  </Items>
+</Project>
+</Export>
